@@ -1,7 +1,7 @@
 <?php
    /*
    Plugin Name: IIIF Media
-   Description: A plugin that adds an 'Insert from Course Collection' link to the Add Media window. This course collection is aggregated from a collection of IIIF manifests.  After manifests have been added to the Settings -> Media page, you may select images from these manifests by clicking on 'Insert from Course Collection' in the Add Media dialog.
+   Description: A plugin that adds a 'IIIF Manifests' link to the Add Media window. This course collection is aggregated from a collection of IIIF manifests.  After manifests have been added to Media -> IIIF Manifests, images from these manifests may be included in posts and pages by clicking on 'IIIF Manifests' in the Add Media dialog.
    Version: 1.0
    License: GPL2
    */
@@ -120,7 +120,7 @@ class IIIFMedia {
   *********************************/
 
   function iiifsearch_upload_tab($tabs) {
-      $tabs['iiifsearch'] = "Insert from Course Collection";
+      $tabs['iiifsearch'] = "IIIF Manifests";
       return $tabs;
   }
   
