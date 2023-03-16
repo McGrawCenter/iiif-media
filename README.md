@@ -1,4 +1,4 @@
-# iiif-media
+# WP IIIF Media Collection Plugin
 
 A Wordpress plugin allowing users to collect IIIF manifests and add images from those manifests to their posts and pages.
 
