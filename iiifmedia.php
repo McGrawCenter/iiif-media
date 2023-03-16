@@ -5,476 +5,191 @@
    Version: 1.0
    License: GPL2
    */
+   
+   
+class IIIFMedia {
 
-
-require_once('manifest.class.php');
-
-
-
-add_action('admin_enqueue_scripts', function(){
-    //wp_enqueue_script( 'iiif-media-tab', plugin_dir_url( __FILE__ ) . '/js/mytab.js', array( 'jquery' ), '', true );
-    //$data = array('site_url' => site_url(),'plugin_url' => plugin_dir_url( __FILE__ ),'ajax_url' => admin_url( 'admin-ajax.php' ));
-    //wp_localize_script( 'iiif-media-tab', 'iiifvars', $data );
+  function __construct() {
     
-    wp_enqueue_style( 'iiif-media', plugins_url( '/css/style.css', __FILE__ ) );    
+    add_action( 'admin_menu', array( $this, 'iiifmedia_add_media_options_page') , 11);
+    // Register and define the settings
+    add_action('admin_init', array( $this, 'iiifmedia_admin_init') );
+    add_action( 'admin_enqueue_scripts', array( $this, 'iiifmedia_admin_scripts') );
+    add_filter('media_upload_tabs', array( $this, 'iiifsearch_upload_tab') ); 
+    add_action('media_upload_iiifsearch', array( $this, 'iiifsearch_add_upload_form') ); 
+    /* ajax */
+    add_action( 'wp_ajax_manifest', array( $this, 'iiif_get_manifest') );
+    add_action( 'wp_ajax_manifests', array( $this, 'iiif_get_manifests') );
+  }
+  
+  
+  function iiifmedia_admin_scripts( $hook ) {
+      wp_enqueue_style( 'iiifmediacss', plugins_url( '/css/style.css', __FILE__ ) );
+      wp_enqueue_script( 'parser', plugin_dir_url( __FILE__ ) . 'js/manifest_parser.js', array(), '1.0' );
+      wp_enqueue_script( 'iiifmedia', plugin_dir_url( __FILE__ ) . 'js/script.js', array(), '1.0' );
+  }
+ 
+  
+  
+  /*****************
+  * 
+  ****************************************************/
 
-});
+  function iiifmedia_add_media_options_page () {
+	add_media_page(
+		__( 'IIIF Manifests', 'textdomain' ),
+		__( 'IIIF Manifests', 'textdomain' ),
+		'manage_options',
+		'iiif-media',
+		array( $this, 'iiifmedia_media_menu_setting_input')
+	);
+  }  
+  
+  
+  /*****************
+  * 
+  ****************************************************/
+  function iiifmedia_media_menu_setting_input() {
+	?>
+	<div class='wrap'>
+	  <h1>IIIF Manifests</h1>
+	  <form name='iiifmanifestadd' action="?page=iiif-media" method="POST">
+	  <p>
+	    <label for="manifesturl">Add New</label>
+	    <input type="text" class='regular-text' id="manifesturl" name="manifesturl" value="" placeholder="Manifest URL"/>
+	    <input type='hidden' name='manifestobj' id='manifestobj'/>
+	  </p>
+	  <div id="manifestpreview" style="display:none;">
+	     <input id='submit' class='button button-primary' style='margin:0 0 10px 10px; float:right;' type='submit' value='Add'/>
+	     <div id="manifestpreview-content"></div>
+	  </div>
+	  </form>
+	</div>
+	<div id="mymanifests"  style='width:98%;'>
+	<table class="wp-list-table widefat striped table-view-list">
+	<thead>
+	<tr>
+		<th class="manage-column">Thumbnail</th>
+		<th class="manage-column">Title/Description</th>
+		<th class="manage-column"></th>
+	</tr>
+	</thead>
+	  <?php
+	  if($options = get_option( 'iiifmedia_manifests' )) {
+	    
+	    foreach($options as $o) {
+	      $obj = json_decode( stripslashes($o) );
+	      echo "<tr>";
+	      echo "<td style='width:126px;'><img src='{$obj->images[0]->thumb}' width='120' /></td>";
+	      echo "<td>{$obj->label}</td>";
+	      echo "<td><button class='button button-primary' style='margin:0 0 10px 10px;'>Remove</button></td>";
+	      echo "</tr>";
+	    }
+	  }
+	  ?>
+		
+	</table>
+	</div>
 
+	<?php
+	
+  }
 
+  /********************************
+  * register setting and save
+  *********************************/
 
-
-
-
-/*****************
-* This adds a new button above the editor next to 'insert media'
-
-function add_iiif_media_button() {
-    echo '<a href="#" id="insert-iiif-media" class="button">Course Collection</a>';
-}
-
-add_action('media_buttons', 'add_iiif_media_button', 15);
-
-*/
-
-
-/*****************
-* This adds a new link on the left hand side of the media uploader
-
-function iiifsearch_add_mediaupload_tab($settings) {
-  $settings['tabs'] = array('iiifsearch' => 'Insert from Course Collection');
-  return $settings;
-}
-add_filter('media_view_settings', 'iiifsearch_add_mediaupload_tab');
-
-*******************/
-
-
-
-// Register and define the settings
-add_action('admin_init', 'iiifmedia_admin_init');
-
-
-function iiifmedia_admin_init(){
+  function iiifmedia_admin_init(){
 	register_setting(
 		'media',                 // settings page
-		'iiifmedia_options',          // option name
+		'iiifmedia_manifests',          // option name
 		'iiifmedia_validate_options'  // validation callback
 	);
 	
-	add_settings_field(
-		'iiifmedia_manifests',      // id
-		'IIIF Manifests',              // setting title
-		'iiifmedia_setting_input',    // display callback
-		'media',                 // settings page
-		'default'                  // settings section
-	);
-
-}
-
-// Display and fill the form field
-function iiifmedia_setting_input() {
-	// get option 'iiif_manifests' value from the database
-	if($options = get_option( 'iiifmedia_options' )) { $value = $options['iiif_manifests']; }
-	else { $value = ""; }
-
-	?>
-	<textarea style='width:100%;height:300px;' id='iiif_manifests' name='iiifmedia_options[iiif_manifests]'><?php echo esc_attr( $value ); ?></textarea>
-	<?php
-}
-
-/*
-if(isset($_POST['iiifmedia_options'])) {
-  
-  
-  if($options = get_option( 'iiifmedia_options' )) { 
-  
-	$obj = array();
-	$manifestlist = $options['iiif_manifests'];
-     
-        $manifests = explode("\n",$manifestlist);
-
-	foreach($manifests as $url) {
-	  $url = trim(str_replace('https','http',$url));
-	  $obj[] = parseManifest($url);
+	if(isset($_POST['manifesturl']) && isset($_POST['manifestobj'])) {
+	//update_option('iiifmedia_manifests', array());
+	  $options = get_option( 'iiifmedia_manifests' );
+	  $options[$_POST['manifesturl']] = $_POST['manifestobj'];
+	  update_option('iiifmedia_manifests', $options);
 	}
 
-	//$data = json_encode($obj);
-	//update_option('iiif_json', $data);
- 
-  }
-    
-  
-}
-*/
+  }  
 
+  /********************************
+  * Add a new link to the Add media dialog
+  *********************************/
 
-// Validate user input and return validated data
-function iiifmedia_validate_options( $input ) {
-	//echo $input['iiif_manifests'];
-	//$valid = array();
-	//$valid['iiif_manifests'] = $input['iiif_manifests'];
-	//return $valid;
-	return $input;
-}
-
-
-
-
-
-
-
-
-
-/********************************
-* Add a new link to the Add media dialog
-*********************************/
-
-function iiifsearch_upload_tab($tabs) {
-    $tabs['iiifsearch'] = "Insert from Course Collection";
-    return $tabs;
-}
-add_filter('media_upload_tabs', 'iiifsearch_upload_tab');
-
-
-
-/********************************
-* Include js and css in the dialog iframe 
-* and call function to populate with html
-*********************************/
-
-function iiifsearch_add_upload_form() {
-    wp_register_script( 'iiifsearch', plugins_url( '/js/iiifsearch.js', __FILE__ ) );
-    wp_enqueue_script( 'iiifsearch' );
-    $data = array(
-      'site_url' => site_url(),
-      'ajax_url' => admin_url( 'admin-ajax.php' )
-    );
-    wp_localize_script( 'iiifsearch', 'iiifvars', $data );
-    wp_register_style('iiifsearch-css', plugins_url('css/style.css',__FILE__ ));
-    wp_enqueue_style('iiifsearch-css');
-
-    wp_iframe('iiifsearch_upload_tab_content');
-
-}
-add_action('media_upload_iiifsearch', 'iiifsearch_add_upload_form');
-
-
-
-
-
-
-
-
-
-
-/********************************
-* populate the iframe with the search interface 
-html
-*********************************/
-
-function iiifsearch_upload_tab_content() {
-  $wait_icon = plugin_dir_url( __FILE__ ) . 'images/loading.gif';
-  
-  $html = media_upload_header();
-  $html .= "&nbsp;&nbsp; Width: <input type='radio' name='width' value='250'/>thumbnail <input type='radio' checked='checked' name='width' value='450'/>medium <input type='radio' name='width' value='800'/>large </p>";
-?>
-<div class='media-frame-content'>
-  <div class='attachments-browser'>
-    <div class='media-toolbar'>toolbar</div>
-    <ul class='iiif-media'></ul>
-    <div class='media-sidebar'><h3>Media details</h3>
-      <div class='attachment-details'>
-      
-      			<input type='hidden' id='attachment-details-iiif' value=''/>
-      
-		 	<p><label for='attachment-details-title' class='name'>Title</label><br />
-			<textarea id='attachment-details-title'></textarea></p>
-
-		 	<p><label for='attachment-details-caption' class='name'>Caption</label><br />
-			<textarea id='attachment-details-caption'></textarea></p>
-
-		 	<p><label for='attachment-details-size' class='name'>Size</label><br />
-			<select id='attachment-details-size'>
-			  <option value='240'>Small (240px)</option>
-			  <option value='500'>Medium (500px)</option>
-			  <option value='800'>Large (800px)</option>
-			  <option value='1200'>Larger (1200px)</option>
-			</select></p>
-			<p><input type='checkbox' id='attachment-details-featured'/> Featured Image</p>
-			<p><button id="iiif-insert" class='button button-large'>Insert</button></p>
-      
-      </div>
-    </div>
-  </div>
-</div> <!-- /media-frame-content -->
-<?php
-}
-
-
-
-
-
-
-/********************************
-* interface html
-********************************
-
-function include_iiif_media_button_js_file() {
-    wp_register_script( 'iiifmedia', plugins_url( '/js/iiifmedia.js', __FILE__ ) );
-    wp_enqueue_script( 'iiifmedia' ,array('jquery'), '1.0', true);
-
-}
-add_action('wp_enqueue_media', 'include_iiif_media_button_js_file');
-*/
-
-function getManifestData($url) {
-  $arrContextOptions=array( "ssl"=>array("verify_peer"=>false,"verify_peer_name"=>false));  
-  $data = file_get_contents($url, false, stream_context_create($arrContextOptions));
-  return json_decode($data);
-}
-
-
-
-function parseManifest($url, $id = NULL) {
-  if($data = getManifestData(trim($url))) {
-
-    if($data->{'@type'} == 'sc:Manifest') {
-    	  $manifest = new StdClass();
-    	  
-          $manifest->id = $data->{'@id'};
-    
-	  $title = $data->label;
-
-	  if(is_array($title)) {
-	  	$t = "";
-	  	foreach($title as $tit) { $t .= $tit." "; }
-	  	$title = $t;
-	  	}
-	  $manifest->title = addslashes((string)$title);
-	  
-	  $canvases = $data->sequences[0]->canvases;
-          $manifest->canvases = array();
-          
-          foreach($canvases as $canvas) {
-            $o = new StdClass();
-            
-            if($canvas->label) { $o->title = $canvas->label; }
-            else { $o->title = $title; }
-             
-            $images = $canvas->images;
-            $o->id = $images[0]->resource->service->{'@id'};
-
-            if(isset($id)) {
-              if($o->id == $id) { $manifest->canvases[] = $o; }
-            }
-            else { $manifest->canvases[] = $o; }
-
-          }
-
-    }
-    return $manifest;
-  }
-  else { return array('not a valid manifest'); }
-}
-
-
-
-
-
-
-
-
-
-/********************************
-* expose json interface (easier than trying to do jsonp)
-********************************/
-
-if(isset($_GET['iiif'])) {
-  $items = array();
-
-  //$manifests = file(plugins_url( './', __FILE__ )."/manifests.txt");
-  
-  if($options = get_option( 'iiifmedia_options' )) { 
-     $manifestlist = $options['iiif_manifests']; 
-  }
-
-  $manifests = explode("\n",$manifestlist);
- 
-  foreach($manifests as $url) {
-    $url = trim(str_replace('https','http',$url));
-    // if an id is provided, just deliver that id in parsemanifest
-    if(isset($_GET['id'])) { $items = array_merge(parseManifest($url, $_GET['id']),$items); }
-    else { $items = array_merge(parseManifest($url),$items); }
+  function iiifsearch_upload_tab($tabs) {
+      $tabs['iiifsearch'] = "Insert from Course Collection";
+      return $tabs;
   }
   
-  header('Content-Type: application/json');
-  echo json_encode($items);
-  die();
-}
+  /********************************
+  * Include js and css in the dialog iframe 
+  * and call function to populate with html
+  *********************************/
 
+  function iiifsearch_add_upload_form() {
+      wp_register_script( 'iiifsearch', plugins_url( '/js/iiifsearch.js', __FILE__ ) );
+      wp_enqueue_script( 'iiifsearch' );
+      $data = array(
+        'site_url' => site_url(),
+        'ajax_url' => admin_url( 'admin-ajax.php' )
+      );
+      wp_localize_script( 'iiifsearch', 'vars', $data );
+      wp_register_style('iiifsearch-css', plugins_url('css/style.css',__FILE__ ));
+      wp_enqueue_style('iiifsearch-css');
 
+      wp_iframe(array( $this, 'iiifsearch_upload_tab_content') );
 
+  }
 
+  /*********************************
+  * populate the iframe with the search interface html
+  *********************************/
 
+  function iiifsearch_upload_tab_content() {
+    $wait_icon = plugin_dir_url( __FILE__ ) . 'images/loading.gif';
+    $html = media_upload_header();
+    $html .= "<div class='iiifimage-controls'><strong>Size</strong>: ";
+    $html .= "<input type='radio' name='width' id='iiifimage-width-thm' value='250'/><label for='iiifimage-width-thm'>thumbnail</label>";
+    $html .= "<input  type='radio' name='width' id='iiifimage-width-med'  value='450' checked='checked' /><label for='iiifimage-width-med'>medium</label>";
+    $html .= "<input type='radio' name='width' id='iiifimage-width-lg'  value='800'/><label for='iiifimage-width-lg'>large</label>";
+    //$html .= "<strong style='margin-left:20px;'>Align</strong>: <input type='radio' name='align' value='left' checked='checked'/>left <input  type='radio' name='align' value='center'/>center <input type='radio' name='align' value='right'/>right </div>";
+    $html .= "<div id='iiifsearchresults'><img src='{$wait_icon}' width='80' height='80'/><br /></div>";
 
-
-
-
-
-
-
-function crb_insert_attachment_from_url($url, $parent_post_id = null) {
-
-	if( !class_exists( 'WP_Http' ) )
-		include_once( ABSPATH . WPINC . '/class-http.php' );
-
-
-	$http = new WP_Http();
-	$response = $http->request( $url );
-	if( $response['response']['code'] != 200 ) {
-		return false;
-	}
-//die('1');
-	$upload = wp_upload_bits( basename($url), null, $response['body'] );
-	if( !empty( $upload['error'] ) ) {
-		return false;
-	}
-//die('2');
-	$file_path = $upload['file'];
-	$file_name = basename( $file_path );
-	$file_type = wp_check_filetype( $file_name, null );
-	$attachment_title = sanitize_file_name( pathinfo( $file_name, PATHINFO_FILENAME ) );
-	$wp_upload_dir = wp_upload_dir();
-
-	$post_info = array(
-		'guid'           => $wp_upload_dir['url'] . '/' . $file_name,
-		'post_mime_type' => $file_type['type'],
-		'post_title'     => $attachment_title,
-		'post_content'   => '',
-		'post_status'    => 'inherit',
-	);
-
-	// Create the attachment
-	$attach_id = wp_insert_attachment( $post_info, $file_path, $parent_post_id );
-
-	// Include image.php
-	require_once( ABSPATH . 'wp-admin/includes/image.php' );
-
-	// Define attachment metadata
-	$attach_data = wp_generate_attachment_metadata( $attach_id, $file_path );
-
-	// Assign metadata to attachment
-	wp_update_attachment_metadata( $attach_id,  $attach_data );
-
-	return $attach_id;
-
-}
-
-
-
-
-
-
-
-
-
-
+    echo $html;
+  }
+  
 /*********************** AJAX ***************************/
 
 
 
-/*************************************
-*  get details of one manifest
-*************************************/
 
-add_action( 'wp_ajax_manifest', 'iiif_get_manifest' );
-
-function iiif_get_manifest() {
-	if(isset($_GET['url'])) {
-	  $url = $_GET['url'];
-	  
-	  if(strstr($url,'manifest=')) {
-	     $x = parse_url($url);
-	     $parts = parse_url($url);
-	     parse_str($parts['query'], $query);
-	     $url = $query['manifest'];
-	   }
-
-	  $m = new Manifest($url);
-	  header('Content-Type: application/json');
-	  echo json_encode($m);
-	}
-	$m = array('error'=>'url GET variable needed');
-	wp_die(); // this is required to terminate immediately and return a proper response
-}
-
-
-add_action( 'wp_ajax_manifests', 'iiif_get_manifests' );
-
-
-/*************************************
-* get a list of all the manifests
-*************************************/
-function iiif_get_manifests() {
-
-	if($options = get_option('iiifmedia_options')) { 
-	  $value = nl2br($options['iiif_manifests']);
-	  $array = explode("<br />",$value);
-
-	  foreach($array as &$a) { $a = trim($a); }
-	    header('Content-Type: application/json');
-	    echo json_encode($array);
-	    die();
-	  }
-
-	wp_die(); // this is required to terminate immediately and return a proper response
-}
-
-
-
-/*************************************
-* if you click on a iiif image, set it as featured image
-*************************************/
-
-add_action( 'wp_ajax_media_featured', 'iiif_media_featured' );
-
-function iiif_media_featured() {
-
-	$data = $_POST;
-
-	//$url = "http://iiif-cloud.princeton.edu/iiif/2/96%2Fd5%2Fbe%2F96d5bee308ac42c4b184e9cbbfff2dc7%2Fintermediate_file/full/1200,/0/default.jpg";
-	$url = "http://iiif-cloud.princeton.edu/iiif/2/9d%2F3e%2F66%2F9d3e665520bb4207b576ee352b91497a%2Fintermediate_file/full/1200,/0/default.jpg";
-	$post_id = 342;
-
-	$data = array('message'=>'success');
-	$data['attachment_id'] = crb_insert_attachment_from_url($url, $parent_post_id);
-	$data['thumb'] = wp_get_attachment_image_src($data['attachment_id']);
-	
-	header('Content-Type: application/json');
-	echo json_encode($data);
-	wp_die();
-}
-
-
-
-/*************************************
-*  add a manifest
-*************************************/
-
-add_action( 'wp_ajax_addmanifest', 'iiif_add_manifest' );
-
-function iiif_add_manifest() {
-
+  function iiif_get_manifest() {
 	if(isset($_GET['url'])) {
 	  $m = new Manifest($_GET['url']);
 	  header('Content-Type: application/json');
 	  echo json_encode($m);
 	}
 	$m = array('error'=>'url GET variable needed');
-	wp_die();
-}
+	wp_die(); // this is required to terminate immediately and return a proper response
+  }
 
 
-add_action( 'wp_ajax_manifests', 'iiif_get_manifests' );
 
-?>
+
+  function iiif_get_manifests() {
+	if($options = get_option( 'iiifmedia_manifests' )) { 
+	  foreach($options as &$option) { $option = json_decode(stripslashes($option)); }
+	  header('Content-Type: application/json');
+	  echo json_encode($options);
+	  die();
+	  }
+	wp_die(); // this is required to terminate immediately and return a proper response
+  } 
+ 
+
+}   
+   
+new IIIFMedia();

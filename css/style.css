@@ -1,26 +1,9 @@
 
-
-.media-sidebar {
-position: absolute;
-top: 0;
-right: 0;
-bottom: 0;
-width: 267px;
-padding: 0 16px;
-z-index: 75;
-background: #f3f3f3;
-border-left: 1px solid #ddd;
-overflow: auto;
-}
-
-
-
-
 .iiifimageblock {
   width:160px;
-  height:230px;
   float:left;
   border:solid 1px #DEDEDE;
+  background:white;
   padding:3px;
   text-align:center;
   margin:0 4px 4px 0;
@@ -32,67 +15,37 @@ overflow: auto;
   max-height:180px;
 }
 
-
-
 #iiifsearchresults {
   padding:10px;
 }
 #iiifsearchresults h3 { clear:both; }
 
+.iiifimage-controls { padding: 20px 20px 0px; }
+.iiifimage-controls label { padding:0.5em 1em 0.5em 0; }
 
-/* --------------------------------------------- */
+#manifestpreview { 
+  padding:1em 2em;
+  background:#CCC;
+  border-radius:15px;
+
+ }
 
 
-.iiif-media {
-  position: absolute;
-  top: 72px;
-  left: 10px;
-  right: 300px;
-  bottom: 0;
-  overflow: auto;
-  outline: 0;
-}
+/************* LIST ***************/
+#mymanifests {
+  margin:20px 20px 20px 0;
+  }
 
-.iiif-media h3 {
-  margin-left:10px;
+#mymanifests ul {
+  list-style-type: none;
+} 
+#mymanifests li {  
+  padding:10px !important;
+  overflow:auto;
 }
+#mymanifests li h3, #mymanifests li p {margin:0;padding:0} 
+#mymanifests li img {float: left;margin: 0 15px 0 0;} 
 
-.tile-grid {
-  grid-template-columns: repeat(6, 1fr);
-  display: grid;
-  grid-gap: 10px;
-}
 
-.tile {
-  box-shadow: 0 1px 4px 0 rgba(12, 12, 13, 0.1);
-  background: #FFF;
-  border-radius: 4px;
-  display: flex;
-  flex-direction: column;
-  position: relative;
-}
 
-.tile:hover {
-  box-shadow: 0 1px 4px 0 rgba(12, 12, 13, 0.7);
-}
 
-.tile.selected {
-  box-shadow: 0 1px 4px 0 #0073aa;
-}
-
-.tile-link {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  text-decoration: none;
-}
-.tile .meta {
-  display: flex;
-  flex-direction: column;
-  padding: 12px 16px;
-  flex-grow: 1;
-  color:#0C0C0D;
-}
-.info-wrap {
- flex-grow:1;
-}
